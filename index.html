@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Target Reaction Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+        
+        .game-area {
+            background-size: 24px 24px;
+            background-image: 
+                radial-gradient(circle, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+        }
+
+        .shake-effect {
+            animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+        }
+
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-2px, 0, 0); }
+            20%, 80% { transform: translate3d(4px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-6px, 0, 0); }
+            40%, 60% { transform: translate3d(6px, 0, 0); }
+        }
+
+        @keyframes pulse-target {
+            0%, 100% { transform: scale(1); box-shadow: 0 0 15px rgba(16, 185, 129, 0.6); }
+            50% { transform: scale(1.08); box-shadow: 0 0 25px rgba(16, 185, 129, 0.9); }
+        }
+
+        .target-circle {
+            animation: pulse-target 1.2s infinite ease-in-out;
+        }
+
+        @keyframes boss-pulse {
+            0%, 100% { transform: scale(1); filter: drop-shadow(0 0 15px rgba(239, 68, 68, 0.6)); }
+            50% { transform: scale(1.03); filter: drop-shadow(0 0 25px rgba(239, 68, 68, 0.9)); }
+        }
+
+        .boss-active {
+            animation: boss-pulse 1.5s infinite ease-in-out;
+        }
+
+        @keyframes laser-sweep {
+            0% { top: 0%; opacity: 0.2; }
+            50% { top: 100%; opacity: 0.9; }
+            100% { top: 0%; opacity: 0.2; }
+        }
+
+        .laser-beam {
+            animation: laser-sweep 1s infinite ease-in-out;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col justify-between overflow-x-hidden selection:bg-emerald-500 selection:text-slate-950">
+
+    <!-- Top Header -->
+    <header class="w-full bg-slate-900/80 backdrop-blur-md border-b border-slate-800 p-4 sticky top-0 z-30">
+        <div class="max-w-5xl mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-slate-950 shadow-lg shadow-emerald-500/20">
+                    <svg class="w-6 h-6 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 2v4m0 12v4M2 12h4m12 0h4m-6 0a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                </div>
+                <div>
+                    <h1 class="font-extrabold text-lg tracking-tight leading-none text-white">Precision Flash</h1>
+                    <p class="text-xs text-slate-400 font-medium mt-1">Reaction Speed & Precision Test</p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <button id="soundToggle" class="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors border border-slate-700" title="Toggle Sound">
+                    <svg id="soundIcon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072M18.364 5.636a9 9 0 010 12.728M11 5L6 9H2v6h4l5 4V5z"/></svg>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="flex-1 max-w-5xl w-full mx-auto p-4 sm:p-6 flex flex-col gap-5 justify-center">
+        
+        <!-- Scoreboard & Stats Header -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div class="bg-slate-900/90 rounded-2xl p-3.5 border border-slate-800 flex flex-col justify-between shadow-sm">
+                <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Level</span>
+                <div class="flex items-baseline gap-1 mt-1">
+                    <span id="levelDisplay" class="text-2xl sm:text-3xl font-extrabold text-emerald-400">1</span>
+                    <span class="text-xs text-slate-500 font-medium">Stage</span>
+                </div>
+            </div>
+
+            <div class="bg-slate-900/90 rounded-2xl p-3.5 border border-slate-800 flex flex-col justify-between shadow-sm">
+                <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Time Limit</span>
+                <div class="flex items-baseline gap-1 mt-1">
+                    <span id="timerDisplay" class="text-2xl sm:text-3xl font-extrabold text-white">10.00</span>
+                    <span class="text-xs text-slate-500 font-medium">sec</span>
+                </div>
+            </div>
+
+            <div class="bg-slate-900/90 rounded-2xl p-3.5 border border-slate-800 flex flex-col justify-between shadow-sm">
+                <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">High Score</span>
+                <div class="flex items-baseline gap-1 mt-1">
+                    <span id="highScoreDisplay" class="text-2xl sm:text-3xl font-extrabold text-amber-400">0</span>
+                    <span class="text-xs text-slate-500 font-medium">Lvl</span>
+                </div>
+            </div>
+
+            <div class="bg-slate-900/90 rounded-2xl p-3.5 border border-slate-800 flex flex-col justify-between shadow-sm">
+                <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Target Size</span>
+                <div class="flex items-baseline gap-1 mt-1">
+                    <span id="targetSizeDisplay" class="text-2xl sm:text-3xl font-extrabold text-teal-400">52</span>
+                    <span class="text-xs text-slate-500 font-medium">px</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Boss Health Bar Header (Hidden by default) -->
+        <div id="bossContainer" class="hidden bg-slate-900/90 border border-rose-500/40 rounded-2xl p-3.5 shadow-lg shadow-rose-950/40 flex flex-col gap-2">
+            <div class="flex justify-between items-center text-xs font-extrabold tracking-wider">
+                <span id="bossTitle" class="text-rose-400 uppercase flex items-center gap-1.5">
+                    <span class="animate-pulse">⚠️</span> BOSS ENCOUNTER: OMEGA CORE
+                </span>
+                <span id="bossHpText" class="text-rose-300">HP: 3/3</span>
+            </div>
+            <div class="w-full bg-slate-950 rounded-full h-3.5 overflow-hidden border border-slate-800 p-0.5">
+                <div id="bossHpBar" class="bg-gradient-to-r from-rose-600 via-red-500 to-amber-500 h-full rounded-full transition-all duration-300 w-full shadow-sm"></div>
+            </div>
+        </div>
+
+        <!-- Interactive Arena Box -->
+        <div id="arenaBox" class="relative w-full h-[420px] sm:h-[480px] bg-slate-900 rounded-3xl border-2 border-slate-800 overflow-hidden shadow-2xl transition-all duration-300 flex items-center justify-center game-area">
+            
+            <!-- Default Start / Game Over Overlay -->
+            <div id="startOverlay" class="absolute inset-0 z-30 bg-slate-950/85 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center">
+                <div id="overlayIcon" class="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mb-4 shadow-lg shadow-emerald-500/10">
+                    <svg class="w-8 h-8 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                </div>
+                <h2 id="overlayTitle" class="text-2xl sm:text-3xl font-extrabold text-white mb-2">Ready to Test Your Speed?</h2>
+                <p id="overlayDesc" class="text-slate-400 text-sm max-w-md mb-6 leading-relaxed">
+                    Click the <strong class="text-emerald-400 font-semibold">Green Circle</strong> as quickly as possible. Avoid clicking red/orange distractor shapes or empty background space!
+                </p>
+                <button id="startBtn" type="button" class="px-8 py-3.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-base rounded-2xl shadow-xl shadow-emerald-500/20 transform active:scale-95 transition-all cursor-pointer z-40">
+                    Start Game
+                </button>
+            </div>
+
+            <!-- Victory Celebration Overlay -->
+            <div id="victoryOverlay" class="absolute inset-0 z-40 bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center hidden">
+                <div class="w-20 h-20 rounded-full bg-amber-500/20 border-2 border-amber-400 text-amber-300 flex items-center justify-center mb-4 shadow-xl shadow-amber-500/20 animate-bounce">
+                    <span class="text-4xl">🏆</span>
+                </div>
+                <h2 class="text-3xl sm:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-emerald-400 to-teal-300 mb-2">
+                    CONGRATULATIONS!
+                </h2>
+                <p class="text-slate-300 text-sm max-w-md mb-2 font-medium">
+                    You mastered the ultimate reaction speed challenge!
+                </p>
+                <p class="text-emerald-400 text-xs font-semibold uppercase tracking-wider mb-6 bg-emerald-950/80 px-4 py-1.5 rounded-full border border-emerald-800/50">
+                    Reached Goal: 5.0 Seconds Limit
+                </p>
+                <button id="victoryRestartBtn" type="button" class="px-8 py-3.5 bg-gradient-to-r from-amber-400 to-emerald-400 text-slate-950 font-bold text-base rounded-2xl shadow-xl shadow-emerald-500/20 transform active:scale-95 transition-all cursor-pointer z-40">
+                    Play Again
+                </button>
+            </div>
+
+            <!-- Red Flash Highlight Effect on Wrong Click -->
+            <div id="failFlash" class="absolute inset-0 bg-red-600/30 backdrop-blur-xs opacity-0 pointer-events-none transition-opacity duration-150 z-10"></div>
+
+            <!-- Laser Attack Visual Overlay -->
+            <div id="bossLaser" class="absolute left-0 right-0 h-3 bg-gradient-to-r from-rose-600 via-red-500 to-amber-500 shadow-lg shadow-rose-500/80 pointer-events-none hidden laser-beam z-20"></div>
+
+            <!-- Target & Distractor Canvas Container -->
+            <div id="gamePlayArea" class="absolute inset-0 hidden">
+                <!-- Distractors, Boss entity, & Target rendered dynamically here -->
+            </div>
+            
+            <!-- Status Indicator Overlay inside game area -->
+            <div id="gameHint" class="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full bg-slate-950/70 border border-slate-800 backdrop-blur-md text-xs font-semibold text-slate-400 pointer-events-none z-10">
+                Wait for green target circle...
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Rules Banner Footer -->
+    <footer class="w-full border-t border-slate-900 bg-slate-950 p-4">
+        <div class="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-2">
+            <div class="flex items-center gap-2">
+                <svg class="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                <span>Rule: Starts at 10.0s. Time decreases by 0.1s each stage. Defeat Boss every 3 levels! Reach 5.0s to Win!</span>
+            </div>
+            <div class="flex items-center gap-4">
+                <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Target</span>
+                <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span> Distractor / Hazard</span>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Web Audio Synthesizer Class
+        class SoundEngine {
+            constructor() {
+                this.ctx = null;
+                this.enabled = true;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    if (AudioCtx) {
+                        this.ctx = new AudioCtx();
+                    }
+                }
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+
+            playSuccess() {
+                if (!this.enabled || !this.ctx) return;
+                try {
+                    const now = this.ctx.currentTime;
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(587.33, now); // D5
+                    osc.frequency.exponentialRampToValueAtTime(880, now + 0.12); // A5
+
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+
+                    osc.start(now);
+                    osc.stop(now + 0.15);
+                } catch(e){}
+            }
+
+            playBossAttack() {
+                if (!this.enabled || !this.ctx) return;
+                try {
+                    const now = this.ctx.currentTime;
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(300, now);
+                    osc.frequency.linearRampToValueAtTime(100, now + 0.2);
+
+                    gain.gain.setValueAtTime(0.25, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+
+                    osc.start(now);
+                    osc.stop(now + 0.2);
+                } catch(e){}
+            }
+
+            playVictory() {
+                if (!this.enabled || !this.ctx) return;
+                try {
+                    const now = this.ctx.currentTime;
+                    [523.25, 659.25, 783.99, 1046.50].forEach((freq, idx) => {
+                        const osc = this.ctx.createOscillator();
+                        const gain = this.ctx.createGain();
+                        osc.type = 'triangle';
+                        osc.frequency.setValueAtTime(freq, now + idx * 0.1);
+                        gain.gain.setValueAtTime(0.2, now + idx * 0.1);
+                        gain.gain.exponentialRampToValueAtTime(0.01, now + idx * 0.1 + 0.3);
+                        osc.connect(gain);
+                        gain.connect(this.ctx.destination);
+                        osc.start(now + idx * 0.1);
+                        osc.stop(now + idx * 0.1 + 0.3);
+                    });
+                } catch(e){}
+            }
+
+            playFail() {
+                if (!this.enabled || !this.ctx) return;
+                try {
+                    const now = this.ctx.currentTime;
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(150, now);
+                    osc.frequency.exponentialRampToValueAtTime(60, now + 0.25);
+
+                    gain.gain.setValueAtTime(0.3, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+
+                    osc.start(now);
+                    osc.stop(now + 0.25);
+                } catch(e){}
+            }
+        }
+
+        const audio = new SoundEngine();
+
+        // Game State Variables
+        let level = 1;
+        let baseTime = 10.00;
+        let timeRemaining = 10.00;
+        let timerInterval = null;
+        let bossAttackInterval = null;
+        let startTimeStamp = 0;
+        let gameState = 'IDLE'; // IDLE, WAITING, ACTIVE, GAMEOVER, VICTORY
+        let highScore = parseInt(localStorage.getItem('precision_reaction_highscore') || '0', 10);
+        let targetSpawnTimeout = null;
+
+        // Boss Variables
+        let isBossLevel = false;
+        let bossHp = 3;
+        let maxBossHp = 3;
+        let bossAttackStep = 0;
+
+        // UI Element References
+        const levelDisplay = document.getElementById('levelDisplay');
+        const timerDisplay = document.getElementById('timerDisplay');
+        const highScoreDisplay = document.getElementById('highScoreDisplay');
+        const targetSizeDisplay = document.getElementById('targetSizeDisplay');
+        const arenaBox = document.getElementById('arenaBox');
+        const startOverlay = document.getElementById('startOverlay');
+        const victoryOverlay = document.getElementById('victoryOverlay');
+        const victoryRestartBtn = document.getElementById('victoryRestartBtn');
+        const overlayTitle = document.getElementById('overlayTitle');
+        const overlayDesc = document.getElementById('overlayDesc');
+        const overlayIcon = document.getElementById('overlayIcon');
+        const gamePlayArea = document.getElementById('gamePlayArea');
+        const failFlash = document.getElementById('failFlash');
+        const startBtn = document.getElementById('startBtn');
+        const gameHint = document.getElementById('gameHint');
+        const soundToggle = document.getElementById('soundToggle');
+        const soundIcon = document.getElementById('soundIcon');
+        const bossContainer = document.getElementById('bossContainer');
+        const bossTitle = document.getElementById('bossTitle');
+        const bossHpText = document.getElementById('bossHpText');
+        const bossHpBar = document.getElementById('bossHpBar');
+        const bossLaser = document.getElementById('bossLaser');
+
+        // Init High Score Display
+        highScoreDisplay.textContent = highScore;
+
+        soundToggle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            audio.enabled = !audio.enabled;
+            if (audio.enabled) {
+                soundIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072M18.364 5.636a9 9 0 010 12.728M11 5L6 9H2v6h4l5 4V5z"/>`;
+                soundToggle.classList.remove('text-rose-400');
+            } else {
+                soundIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" stroke-dasharray="2 2"/><line x1="17" y1="9" x2="23" y2="15" stroke-width="2"/><line x1="23" y1="9" x2="17" y2="15" stroke-width="2"/>`;
+                soundToggle.classList.add('text-rose-400');
+            }
+        });
+
+        const onStartClick = (e) => {
+            if (e) e.stopPropagation();
+            audio.init();
+            startGame();
+        };
+
+        startBtn.addEventListener('click', onStartClick);
+        victoryRestartBtn.addEventListener('click', onStartClick);
+
+        // Click on arena outside target
+        arenaBox.addEventListener('pointerdown', (e) => {
+            if (e.target.closest('#startBtn') || e.target.closest('#victoryRestartBtn') || e.target.closest('#soundToggle')) return;
+            
+            if (gameState === 'WAITING') {
+                // False start!
+                triggerGameOver("Too Early! Wait for the Green Circle.");
+            } else if (gameState === 'ACTIVE' && !e.target.classList.contains('target-circle')) {
+                // Clicked distractor, hazard, or empty background space
+                triggerGameOver("Missed! You clicked a wrong target or background.");
+            }
+        });
+
+        function startGame() {
+            level = 1;
+            baseTime = 10.00;
+            updateStatsUI();
+            startOverlay.classList.add('hidden');
+            victoryOverlay.classList.add('hidden');
+            gamePlayArea.classList.remove('hidden');
+            prepareNextRound();
+        }
+
+        function updateStatsUI() {
+            levelDisplay.textContent = level;
+            highScoreDisplay.textContent = highScore;
+            timerDisplay.textContent = baseTime.toFixed(2);
+            const targetSize = Math.max(28, Math.round(52 - (level - 1) * 0.5));
+            targetSizeDisplay.textContent = targetSize;
+        }
+
+        function prepareNextRound() {
+            gameState = 'WAITING';
+            clearInterval(timerInterval);
+            clearInterval(bossAttackInterval);
+            clearTimeout(targetSpawnTimeout);
+            bossLaser.classList.add('hidden');
+            gamePlayArea.innerHTML = '';
+            
+            // Check if current level is a Boss Level (Every 3rd level)
+            isBossLevel = (level % 3 === 0);
+
+            if (isBossLevel) {
+                maxBossHp = 3 + Math.floor(level / 3);
+                bossHp = maxBossHp;
+                bossContainer.classList.remove('hidden');
+                updateBossHpUI();
+                gameHint.textContent = `⚠️ BOSS LEVEL ${level}! Click Green Target to damage Boss!`;
+                gameHint.className = "absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full bg-rose-950/90 border border-rose-700 backdrop-blur-md text-xs font-bold text-rose-300 pointer-events-none z-10 animate-pulse";
+            } else {
+                bossContainer.classList.add('hidden');
+                gameHint.textContent = "Wait for green target circle...";
+                gameHint.className = "absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full bg-amber-950/80 border border-amber-800 backdrop-blur-md text-xs font-semibold text-amber-300 pointer-events-none z-10 animate-pulse";
+            }
+
+            // Random delay between 600ms and 1800ms
+            const delay = Math.floor(Math.random() * 1200) + 600;
+            targetSpawnTimeout = setTimeout(() => {
+                spawnShapes();
+            }, delay);
+        }
+
+        function updateBossHpUI() {
+            bossTitle.textContent = `⚠️ BOSS ENCOUNTER: STAGE ${level}`;
+            bossHpText.textContent = `HP: ${bossHp}/${maxBossHp}`;
+            const percent = (bossHp / maxBossHp) * 100;
+            bossHpBar.style.width = `${percent}%`;
+        }
+
+        function spawnShapes() {
+            if (gameState !== 'WAITING') return;
+
+            gamePlayArea.innerHTML = '';
+            const rect = arenaBox.getBoundingClientRect();
+            const width = rect.width;
+            const height = rect.height;
+
+            const targetSize = Math.max(28, Math.round(52 - (level - 1) * 0.5));
+            const padding = 20;
+
+            const occupiedPositions = [];
+
+            function isOverlapping(x, y, size) {
+                for (let pos of occupiedPositions) {
+                    const dist = Math.hypot(pos.x - x, pos.y - y);
+                    if (dist < (pos.size / 2 + size / 2 + 15)) return true;
+                }
+                return false;
+            }
+
+            // Render Boss Visual Entity if Boss Level
+            if (isBossLevel) {
+                const bossEl = document.createElement('div');
+                bossEl.className = 'absolute top-3 left-1/2 -translate-x-1/2 w-28 h-28 rounded-full bg-gradient-to-b from-rose-600 via-red-800 to-slate-950 border-4 border-rose-500 flex flex-col items-center justify-center shadow-2xl boss-active pointer-events-none z-10';
+                bossEl.innerHTML = `
+                    <div class="w-10 h-10 rounded-full bg-red-500 border-2 border-amber-300 flex items-center justify-center animate-ping opacity-75"></div>
+                    <div class="absolute w-6 h-6 rounded-full bg-amber-300 border-2 border-red-950"></div>
+                    <span class="absolute -bottom-2 px-2 py-0.5 bg-rose-950 text-[10px] text-rose-300 font-extrabold rounded border border-rose-600 uppercase tracking-widest">BOSS</span>
+                `;
+                gamePlayArea.appendChild(bossEl);
+                occupiedPositions.push({ x: width / 2, y: 70, size: 120 });
+            }
+
+            // Spawn Green Target Circle
+            let targetX, targetY;
+            let attempts = 0;
+            do {
+                targetX = Math.random() * (width - targetSize - padding * 2) + padding + targetSize / 2;
+                targetY = Math.random() * (height - targetSize - padding * 2) + padding + targetSize / 2;
+                attempts++;
+            } while (isOverlapping(targetX, targetY, targetSize) && attempts < 100);
+
+            occupiedPositions.push({ x: targetX, y: targetY, size: targetSize });
+
+            const targetEl = document.createElement('div');
+            targetEl.className = 'absolute rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-lg shadow-emerald-500/50 cursor-pointer border-2 border-emerald-200 z-20 target-circle';
+            targetEl.style.width = `${targetSize}px`;
+            targetEl.style.height = `${targetSize}px`;
+            targetEl.style.left = `${targetX - targetSize / 2}px`;
+            targetEl.style.top = `${targetY - targetSize / 2}px`;
+
+            targetEl.addEventListener('pointerdown', (e) => {
+                e.stopPropagation();
+                onTargetClicked();
+            });
+
+            gamePlayArea.appendChild(targetEl);
+
+            // Spawn Distractor Shapes based on stage level
+            const distractorCount = Math.min(10, Math.floor((level - 1) / 2) + 1);
+            const distractorColors = ['bg-rose-500', 'bg-orange-500', 'bg-amber-500', 'bg-purple-500'];
+
+            for (let i = 0; i < distractorCount; i++) {
+                let dSize = Math.random() * 20 + 30;
+                let dX, dY, dAttempts = 0;
+                do {
+                    dX = Math.random() * (width - dSize - padding * 2) + padding + dSize / 2;
+                    dY = Math.random() * (height - dSize - padding * 2) + padding + dSize / 2;
+                    dAttempts++;
+                } while (isOverlapping(dX, dY, dSize) && dAttempts < 100);
+
+                if (dAttempts < 100) {
+                    occupiedPositions.push({ x: dX, y: dY, size: dSize });
+
+                    const dEl = document.createElement('div');
+                    const color = distractorColors[Math.floor(Math.random() * distractorColors.length)];
+                    const isSquare = Math.random() > 0.5;
+
+                    dEl.className = `absolute ${color} shadow-md opacity-80 cursor-pointer transition-transform hover:scale-105 z-10 ${isSquare ? 'rounded-lg' : 'rounded-none rotate-45'}`;
+                    dEl.style.width = `${dSize}px`;
+                    dEl.style.height = `${dSize}px`;
+                    dEl.style.left = `${dX - dSize / 2}px`;
+                    dEl.style.top = `${dY - dSize / 2}px`;
+
+                    gamePlayArea.appendChild(dEl);
+                }
+            }
+
+            gameState = 'ACTIVE';
+            bossAttackStep = 0;
+            gameHint.textContent = isBossLevel ? "ATTACK THE BOSS BY CLICKING THE GREEN CIRCLE!" : "CLICK THE GREEN CIRCLE!";
+            gameHint.className = "absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full bg-emerald-950/80 border border-emerald-700 backdrop-blur-md text-xs font-bold text-emerald-300 pointer-events-none z-10";
+
+            startTimer();
+
+            // Start Boss 1-Second Periodic Attack Cycle
+            if (isBossLevel) {
+                clearInterval(bossAttackInterval);
+                bossAttackInterval = setInterval(() => {
+                    executeBossAttack();
+                }, 1000);
+            }
+        }
+
+        function executeBossAttack() {
+            if (gameState !== 'ACTIVE' || !isBossLevel) return;
+
+            bossAttackStep++;
+            audio.playBossAttack();
+
+            const attackType = bossAttackStep % 3;
+
+            if (attackType === 1) {
+                // Boss Attack 1: Sweeping Laser Beam
+                bossLaser.classList.remove('hidden');
+                setTimeout(() => {
+                    bossLaser.classList.add('hidden');
+                }, 800);
+            } else if (attackType === 2) {
+                // Boss Attack 2: Plasma Orb Barrage (Moving Hazarded Orbs)
+                const orb = document.createElement('div');
+                const startX = Math.random() * (arenaBox.clientWidth - 40);
+                orb.className = 'absolute w-8 h-8 rounded-full bg-rose-600 border-2 border-amber-400 shadow-lg shadow-rose-500/80 pointer-events-none z-20 transition-all duration-700';
+                orb.style.top = '80px';
+                orb.style.left = `${startX}px`;
+
+                gamePlayArea.appendChild(orb);
+
+                setTimeout(() => {
+                    orb.style.top = `${arenaBox.clientHeight - 60}px`;
+                    orb.style.transform = 'scale(1.5)';
+                }, 50);
+
+                setTimeout(() => {
+                    orb.remove();
+                }, 750);
+            } else {
+                // Boss Attack 3: Blinding Screen Glitch Flash
+                arenaBox.classList.add('bg-rose-950/50');
+                setTimeout(() => {
+                    arenaBox.classList.remove('bg-rose-950/50');
+                }, 250);
+            }
+        }
+
+        function startTimer() {
+            timeRemaining = baseTime;
+            startTimeStamp = Date.now();
+
+            clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                const elapsed = (Date.now() - startTimeStamp) / 1000;
+                timeRemaining = Math.max(0, baseTime - elapsed);
+                timerDisplay.textContent = timeRemaining.toFixed(2);
+
+                if (timeRemaining <= 0) {
+                    clearInterval(timerInterval);
+                    triggerGameOver("Time Out! You ran out of time.");
+                }
+            }, 10);
+        }
+
+        function onTargetClicked() {
+            if (gameState !== 'ACTIVE') return;
+
+            audio.playSuccess();
+
+            // Handle Boss Level HP Mechanics
+            if (isBossLevel) {
+                bossHp--;
+                updateBossHpUI();
+
+                if (bossHp > 0) {
+                    // Boss still alive -> reposition green circle immediately & reset round timer
+                    clearInterval(timerInterval);
+                    clearInterval(bossAttackInterval);
+                    prepareNextRound();
+                    return;
+                }
+            }
+
+            // Target/Boss Defeated
+            clearInterval(timerInterval);
+            clearInterval(bossAttackInterval);
+
+            // Save highscore
+            if (level > highScore) {
+                highScore = level;
+                localStorage.setItem('precision_reaction_highscore', highScore.toString());
+            }
+
+            // Decrease time limit by 0.1s each stage
+            const nextBaseTime = Math.max(5.0, 10.00 - level * 0.1);
+            
+            // Victory Condition: when target time limit reaches 5.0 seconds
+            if (nextBaseTime <= 5.0) {
+                gameState = 'VICTORY';
+                audio.playVictory();
+                victoryOverlay.classList.remove('hidden');
+                gamePlayArea.classList.add('hidden');
+                bossContainer.classList.add('hidden');
+                levelDisplay.textContent = level;
+                timerDisplay.textContent = "5.00";
+                return;
+            }
+
+            level++;
+            baseTime = nextBaseTime;
+            updateStatsUI();
+            prepareNextRound();
+        }
+
+        function triggerGameOver(reason) {
+            gameState = 'GAMEOVER';
+            clearInterval(timerInterval);
+            clearInterval(bossAttackInterval);
+            clearTimeout(targetSpawnTimeout);
+            bossLaser.classList.add('hidden');
+            bossContainer.classList.add('hidden');
+            audio.playFail();
+
+            // Flash Red and Shake
+            failFlash.classList.remove('opacity-0');
+            failFlash.classList.add('opacity-100');
+            arenaBox.classList.add('shake-effect');
+
+            setTimeout(() => {
+                failFlash.classList.remove('opacity-100');
+                failFlash.classList.add('opacity-0');
+                arenaBox.classList.remove('shake-effect');
+            }, 400);
+
+            // Update High Score
+            if (level - 1 > highScore) {
+                highScore = level - 1;
+                localStorage.setItem('precision_reaction_highscore', highScore.toString());
+            }
+
+            // Update Start Overlay for Restarting
+            overlayIcon.className = "w-16 h-16 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 flex items-center justify-center mb-4 shadow-lg shadow-rose-500/10";
+            overlayIcon.innerHTML = `<svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>`;
+            overlayTitle.textContent = "Game Over!";
+            overlayDesc.innerHTML = `<span class="text-rose-400 font-semibold">${reason}</span><br>You reached <strong class="text-white">Level ${level}</strong>. Press restart to try again!`;
+            startBtn.textContent = "Try Again";
+
+            gamePlayArea.classList.add('hidden');
+            startOverlay.classList.remove('hidden');
+            highScoreDisplay.textContent = highScore;
+        }
+    </script>
+</body>
+</html>
